@@ -1,35 +1,35 @@
 {
+	"notification_time": 5000,
 	"high_battery_levels" : {
 		"100" : {
 			"message": "Battery Fully Charged",
-			"notification_icon" : "",
-			"notification_sound" : "",
+			"notification_icon" : "battery-charged",
+			"notification_sound" : "/home/username/.config/scripts/assets/battery_charging.ogg",
 			"urgent_level": "Critical"
 		}
 	},	
 
 	"low_battery_levels" : {
-		"20": {
+		"70": {
 			"message": "Battery Low",
-			"notification_icon" : "",
-			"notification_sound" : "",			
+			"notification_icon" : "battery-alert",
 			"urgent_level": "Critical"
 		},
 		"10": {
 			"message": "Battery Critically Low",
-			"notification_icon" : "",
-			"notification_sound" : "",
+			"notification_icon" : "battery-alert",
+			"notification_sound" : "/home/username/.config/scripts/assets/battery_low.ogg",
 			"urgent_level": "Critical"
 		}		
 	},
 	
 	"charger_notifications": {
 		"charging": true,
-		"charging_icon": "",
-		"plugged_sound": "",
+		"charging_icon": "battery-charging",
+		"plugged_sound": "/home/username/.config/scripts/assets/battery_charging.ogg",
 		"discharging": true,
-		"discharging_icon": "",
-		"unplugged_sound": "",
+		"discharging_icon": "battery-discharging",
+		"unplugged_sound": "/home/username/.config/scripts/assets/battery_discharging.mp3",
 		"urgent_level": "Normal"
 	}
 }
