@@ -1,45 +1,10 @@
 use std::{collections::HashSet, io};
-
 use crate::{config::Config, notifications::{send_battery_notification, send_charger_notification}};
 
 
-pub fn get_battery_manager () -> Option<battery::Manager> {
-    match battery::Manager::new(){
-        Ok(manager) => {
-            return Some(manager);
-        },
-        Err(error) => {
-            
-            eprintln!("Unable to get battery manager\n\n\n {error}");
-            
-        },
-    };
-    None
-}
-
-
-pub fn get_battery(battery_manager: & battery::Manager) -> Option<battery::Battery> {
-    let mut batteries_iterator = battery_manager.batteries().ok()?;
-
-    match batteries_iterator.next() {
-        Some(Ok(battery)) => {
-            return Some(battery);
-        },
-        Some(Err(error)) => {
-            eprintln!("Unable to access battery information\n\n\n {error}");
-        }
-        None => {
-            eprintln!(
-                "Unable to find any batteries\n\n\n {}",
-                io::Error::from(io::ErrorKind::NotFound)
-                );
-
-            }
-        };
-    None
-}
-
-
+//  ----------------------------------------------------
+//  BatteryStats Struct and Implementation
+//  ----------------------------------------------------
 #[derive(Debug)]
 pub struct BatteryStats {
     prev_state: String,
@@ -53,44 +18,28 @@ impl BatteryStats {
     pub fn new(battery_manager: &battery::Manager,  battery: &mut battery::Battery) -> Option<Self> {
 
         battery_manager.refresh(battery).ok()?;
-        let current_state = match battery.state() {
-            battery::State::Charging => "Charging",
-            battery::State::Full => "Charging",
-            battery::State::Discharging => "Discharging",
-            battery::State::Empty => "Discharging",
-            battery::State::Unknown=> "Unknown",
-            _ => "Unknown" 
-        };
-
+        let current_state = battery_state_to_string(battery.state());
         let percentage = (battery.state_of_charge().value * 100.0) as i32;
         let previous_state = if current_state == "Discharging" {"Charging"} else {"Discharging"};
 
         Some(
             BatteryStats { 
             prev_state: previous_state.to_string(), 
-            last_notified_state: current_state.to_string(),
-            current_state: current_state.to_string(),
+            last_notified_state: current_state.clone(),
+            current_state,
             percentage
         })
     } 
     
-    pub fn get_battery_stats(&mut self, battery_manager: &battery::Manager,  battery: &mut battery::Battery) {
+    pub fn update_battery_stats(&mut self, battery_manager: &battery::Manager,  battery: &mut battery::Battery) {
         if let Ok(()) = battery_manager.refresh(battery) {
-            let current_state = match battery.state() {
-                battery::State::Charging => "Charging",
-                battery::State::Full => "Charging",
-                battery::State::Discharging => "Discharging",
-                battery::State::Empty => "Discharging",
-                battery::State::Unknown=> "Unknown",
-                _ => "Unknown" 
-            };
-            self.current_state = current_state.to_string();
+
+            self.current_state = battery_state_to_string(battery.state());
             self.percentage = ((battery.state_of_charge()).value * 100.0) as i32;
         }
     } 
     
-
-    pub fn handle_charger_notifications(&mut self, notification_id: u32, configuration: &Config ) {
+    pub fn handle_charger_notifications(&mut self, config: &Config ) {
         
         let inferred_state: &str = if self.current_state == "Unknown" {
             // Transition edge: infer the *new* state
@@ -104,50 +53,97 @@ impl BatteryStats {
 
         // Notify only once per inferred state change
         if inferred_state != self.last_notified_state {
-            if let Some(charger_notifications) = &configuration.charger_notifications {
-                send_charger_notification(
-                    notification_id, 
-                    inferred_state, 
-                    &self.percentage,
-                    charger_notifications,
-                    configuration.get_time()
-                    );
+            if let Some(charger_notifications) = &config.charger_notifications
+                && charger_notifications.should_notify_for_state(inferred_state) {
+                    send_charger_notification(
+                        inferred_state, 
+                        &self.percentage,
+                        charger_notifications,
+                        config.time()
+                        );
             }
             self.last_notified_state = inferred_state.to_string();
         }
     }
 
-    pub fn handle_battery_state_change(&mut self, notifications_sent: &mut HashSet<u8>){
+    pub fn handle_battery_state_change(&mut self, battery_notif_sent: &mut HashSet<u8>){
         // This means we switched states 
         if self.prev_state != self.current_state {
             // previous state should never be unknown
             if self.current_state != "Unknown" {
                 self.prev_state = self.current_state.clone();
             }
-            notifications_sent.clear();
+            battery_notif_sent.clear();
         }
     }
 
-    pub fn handle_battery(&mut self, notification_id: u32, _configuration: &Config, notifications_sent: &mut HashSet<u8>) {
-        let notification_time = _configuration.get_time();
-        if self.current_state == "Discharging" && let Some(low_charges) = &_configuration.low_battery_levels {
+    pub fn handle_battery(&mut self, config: &Config, battery_notif_sent: &mut HashSet<u8>) {
+        let notification_time = config.time();
+        if self.current_state == "Discharging" && let Some(low_charges) = &config.low_battery_levels {
                 
-                for (battery_level, notification_info)  in low_charges.iter().rev(){
-                    if self.percentage <= *battery_level as i32 && !(notifications_sent).contains(battery_level) {
-                            notifications_sent.insert(*battery_level);
-                            send_battery_notification(notification_id, &self.percentage, notification_info, notification_time);
-                    }
+            for (battery_level, notification_info)  in low_charges.iter().rev(){
+                if self.percentage <= *battery_level as i32 && !(battery_notif_sent).contains(battery_level) {
+                    battery_notif_sent.insert(*battery_level);
+                    send_battery_notification(&self.percentage, notification_info, notification_time);
                 }
+            }
             
         }
-        else if self.current_state == "Charging" && let Some(high_charges) = &_configuration.high_battery_levels {
+        else if self.current_state == "Charging" && let Some(high_charges) = &config.high_battery_levels {
 
-                for (battery_level, notification_info)  in high_charges.iter(){
-                    if self.percentage >= *battery_level as i32 && !(notifications_sent).contains(battery_level) {
-                            notifications_sent.insert(*battery_level);
-                            send_battery_notification(notification_id, &self.percentage, notification_info, notification_time);
-                    }
+            for (battery_level, notification_info)  in high_charges.iter(){
+                if self.percentage >= *battery_level as i32 && !(battery_notif_sent).contains(battery_level) {
+                    battery_notif_sent.insert(*battery_level);
+                    send_battery_notification(&self.percentage, notification_info, notification_time);
                 }
+            }
         }
     }
+}
+
+
+//  ----------------------------------------------------
+//  Battery Helper Functions
+//  ----------------------------------------------------
+pub fn init_battery_manager () -> Option<battery::Manager> {
+    match battery::Manager::new(){
+        Ok(manager) => Some(manager),
+        Err(error) => {           
+            eprintln!("Unable to get battery manager\n\n\n {error}");
+            None
+        }
+    }
+}
+
+pub fn init_battery(battery_manager: &battery::Manager) -> Option<battery::Battery> {
+    let mut batteries_iterator = battery_manager.batteries().ok()?;
+
+    match batteries_iterator.next() {
+        Some(Ok(battery)) => Some(battery),
+        Some(Err(error)) => {
+            eprintln!("Unable to access battery information\n\n\n {error}");
+            None
+        }
+        None => {
+            eprintln!(
+                "Unable to find any batteries\n\n\n {}",
+                io::Error::from(io::ErrorKind::NotFound)
+            );
+            None
+        }
+    }
+}
+
+fn battery_state_to_string(state: battery::State) -> String {
+    // Using a match statement rather than the to_string() implementation of the battery crate
+    // because it returns the strings in lowercase and they are needed in Title case for better formatting
+    // and 'Full' and 'Empty' states add extra complexity that can be simply avoided by having 3 states 
+    match state {
+            battery::State::Charging    |
+            battery::State::Full        => "Charging",
+            battery::State::Discharging |
+            battery::State::Empty       => "Discharging",
+            battery::State::Unknown     => "Unknown", 
+            _                           => "Unknown"   // making clippy happy :)
+    }.to_string()
 }

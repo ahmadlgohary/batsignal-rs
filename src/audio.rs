@@ -1,4 +1,11 @@
+/// Plays sound along side notification
 pub fn play_notification_sound(sound_path: &str) {
+    
+    // Return early if path is not provided
+    if sound_path.is_empty(){
+        return;
+    }
+
     let stream_handle = match rodio::OutputStreamBuilder::open_default_stream(){
         Ok(stream_handle) => stream_handle,
         Err(error) => {
@@ -18,6 +25,7 @@ pub fn play_notification_sound(sound_path: &str) {
             return;
         }
     };
+
     let source = match rodio::Decoder::try_from(file) {
         Ok(source) => source,
         Err(error) => {
@@ -26,6 +34,9 @@ pub fn play_notification_sound(sound_path: &str) {
             return;
         }
     };
+    
+    // Keep this function alive until the audio file finishes playing
+    // otherwise the function will exit before the file even plays 
     sink.append(source);
     sink.sleep_until_end();
 }

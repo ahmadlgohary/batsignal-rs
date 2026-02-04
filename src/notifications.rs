@@ -1,77 +1,74 @@
-use std::{
- thread, time::Duration
+use notify_rust::{Notification, Hint};
+use crate::{
+    audio::play_notification_sound, 
+    config::{
+        GetUrgency,
+        BatteryNotification, 
+        ChargerNotification
+    }
 };
-use notify_rust::{
-    Notification,
-    Hint
-};
-use crate::{audio::play_notification_sound, config::{BatteryNotification, ChargerNotification}};
-
-pub fn create_notification_id() -> u32 {
-    let handle  = Notification::new()
-    .show()
-    .unwrap();
-    let id = handle.id();   
-    handle.close();  
-    thread::sleep(Duration::from_secs(1));
-    id
-} 
-
-
 
 pub fn send_battery_notification(
-        id: u32, 
         battery_level: &i32, 
-        notification_information: &BatteryNotification, 
+        notif_info: &BatteryNotification, 
         time: i32
     ){
 
     Notification::new()
-    .id(id)
     .hint(Hint::Transient(true))
+    .hint(Hint::Custom("synchronous".into(), "battery_notif".into()))  
 
-    .summary(notification_information.get_message())
+    .summary(notif_info.notification_message())
     .body(&format!("{battery_level}% of battery remaining"))
-    .icon(notification_information.get_icon())
-    .urgency(notification_information.get_urgency())
+    .icon(notif_info.notification_icon())
+    .urgency(notif_info.urgency())
     .timeout(time)
-    
+
     .show()
     .unwrap();
     
-    if ! notification_information.get_sound().is_empty() {
-        play_notification_sound(notification_information.get_sound());
-    } 
-
-
+    play_notification_sound(notif_info.notification_sound());
 }
 
-
-
 pub fn send_charger_notification(
-        id: u32, 
         charging_state: &str,
         battery_level: &i32,
-        notification_information: &ChargerNotification, 
+        notif_info: &ChargerNotification, 
         time: i32
     ) {
     
-    if notification_information.get_bool_by_state(charging_state) {
-        Notification::new()
-        .id(id)
-        .hint(Hint::Transient(true))
+    Notification::new()
+    
+    // Transient hint means the notification by-passes the server's persistence and is not stored 
+    .hint(Hint::Transient(true))
+    
+    // Used such that new notifications to replace previous notifications without cluttering
+    .hint(Hint::Custom("synchronous".into(), "battery_notif".into())) 
 
-        .summary(charging_state)
-        .body(&format!("{battery_level}% of battery remaining"))
-        .icon(notification_information.get_icon_by_state(charging_state))
-        .urgency(notification_information.get_urgency())
-        .timeout(time) 
+    .summary(charging_state)
+    .body(&format!("{battery_level}% of battery remaining"))
+    .icon(notif_info.icon_for_state(charging_state))
+    .urgency(notif_info.urgency())
+    .timeout(time) 
 
-        .show()
-        .unwrap();
-        
-        if ! notification_information.get_sound_by_state(charging_state).is_empty() {
-            play_notification_sound(notification_information.get_sound_by_state(charging_state));
-        }
-    }
+    .show()
+    .unwrap();
+    
+    play_notification_sound(notif_info.sound_for_state(charging_state));
 } 
+
+
+
+// -------- Obsolete --------
+// /// This function creates a notification Id such that other notifications use the same id and replace each other. 
+// /// The Id is retrieved by sending a notification and closing it. 
+// /// This happens fast enough such that the notification does not appear to the user
+// /// 
+// pub fn create_notification_id() -> u32 {
+//     let handle  = Notification::new()
+//     .show()
+//     .unwrap();
+//     let id = handle.id();   
+//     handle.close();  
+//     id
+// } 

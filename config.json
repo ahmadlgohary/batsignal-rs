@@ -10,7 +10,7 @@
 	},	
 
 	"low_battery_levels" : {
-		"70": {
+		"20": {
 			"message": "Battery Low",
 			"notification_icon" : "battery-alert",
 			"urgent_level": "Critical"

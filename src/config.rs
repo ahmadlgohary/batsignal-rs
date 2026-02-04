@@ -1,7 +1,10 @@
-use std::{collections::BTreeMap, fs};
 use serde::Deserialize;
 use notify_rust::Urgency;
+use std::{collections::BTreeMap, fs};
 
+// ----------------------------------------------------------------
+// Configuration Struct and Implementation
+// ----------------------------------------------------------------
 #[derive(Debug, Deserialize)]
 pub struct Config {
     notification_time: Option<i32>,
@@ -10,21 +13,30 @@ pub struct Config {
     pub(crate) charger_notifications: Option<ChargerNotification>
 }
 
+/// This function reads a json config file and parses it into the Config Struct
 impl Config {
     pub fn parse_json() -> Config {
+        
+        // TODO: 
+        //  - make it take command line arguments for the path 
+        //  - make it deal with no config file found -> return all defaults
+        //  - make it deal with jsonc files
         let file: String = fs::read_to_string("config.json").expect("Failed to open file");
         let config: Config = serde_json::from_str(&file).unwrap();
         config
     }
-    pub fn get_time(&self) -> i32 {
-        if let Some(time) = self.notification_time {
-            return time;
-        }
+
+    /// Getter function to return the time specified in the configuration file
+    /// Defaults to 5000 ms (5 seconds)
+    pub fn time(&self) -> i32 {
         // default to 5000 ms (5 seconds)
-        5000
+        self.notification_time.unwrap_or(5000)
     }
 }
 
+// ----------------------------------------------------------------
+// Battery Notification Struct and Implementation
+// ----------------------------------------------------------------
 #[derive(Debug, Deserialize)]
 pub struct BatteryNotification{
     message: String,
@@ -33,39 +45,27 @@ pub struct BatteryNotification{
     urgent_level: Option<String>
 }
 
+/// This implementation defines Getter functions for the fields in the above struct
+/// Also deals with option<> types by returning default values
 impl BatteryNotification {
-    pub fn get_message(&self) -> &str {
+    pub fn notification_message(&self) -> &str {
         self.message.as_str()
     }
     
-    pub fn get_icon(&self) -> &str {
-        if let Some(icon) = &self.notification_icon {
-            return icon.as_str();
-        }
-        ""
+    pub fn notification_icon(&self) -> &str {
+        // Defaults to an empty string 
+        self.notification_icon.as_deref().unwrap_or("")
     }
     
-    pub fn get_sound(&self) -> &str {
-        if let Some(sound) = &self.notification_sound {
-            return sound.as_str();
-        }
-        ""
-    }
-    
-    pub fn get_urgency(&self) -> Urgency {
-        if let Some(urgent_level) = &self.urgent_level {
-           match urgent_level.as_str().trim().try_into() {
-                Ok(urgent) => return urgent,
-                Err(_) => { 
-                    eprint!("Unsupported Urgency Level.\t Resorting to Normal");
-                    return Urgency::Normal;
-                }
-           }
-        }
-        Urgency::Normal
+    pub fn notification_sound(&self) -> &str {
+        // Defaults to an empty string 
+        self.notification_sound.as_deref().unwrap_or("")
     }
 }
 
+// ----------------------------------------------------------------
+// Charger Notification Struct and Implementation
+// ----------------------------------------------------------------
 #[derive(Debug, Deserialize)]
 pub struct ChargerNotification {
     charging: Option<bool>,
@@ -77,83 +77,60 @@ pub struct ChargerNotification {
     urgent_level: Option<String>
 }
 
+/// This implementation defines Getter functions for the fields in the above struct
+/// Also deals with option<> types by returning default values
 impl ChargerNotification {
 
-    pub fn get_charging(&self) -> bool {
-        if let Some(send_charging_notifications) = self.charging{
-            return send_charging_notifications;
+    pub fn should_notify_for_state(&self, state: &str) -> bool {
+         match state {
+            "Charging" => self.charging.unwrap_or(false),
+            "Discharging" => self.discharging.unwrap_or(false),
+            _ => false
         }
-        // default to false
-        false
     }
 
-    pub fn get_plugged_sound(&self) -> &str {
-        if let Some(plugged_sound) = &self.plugged_sound {
-            return plugged_sound;
+    pub fn icon_for_state(&self, state: &str) -> &str {
+        match state {
+            "Charging" => self.charging_icon.as_deref().unwrap_or(""),
+            "Discharging" => self.discharging_icon.as_deref().unwrap_or(""),
+            _ => ""
         }
-        ""
     }
 
-    pub fn get_charging_icon(&self) -> &str {
-        if let Some(charging_icon) = &self.charging_icon {
-            return charging_icon;
+    pub fn sound_for_state(&self, state: &str) -> &str {
+         match state {
+            "Charging" => self.plugged_sound.as_deref().unwrap_or(""),
+            "Discharging" => self.unplugged_sound.as_deref().unwrap_or(""),
+            _ => ""
         }
-        ""
     }
+}
 
-    pub fn get_discharging(&self) -> bool {
-        if let Some(send_discharging_notifications) = self.discharging {
-            return send_discharging_notifications;
-        }
-        // default to false
-        false
-    }
+// ----------------------------------------------------------------
+// Trait for Battery Notification and Charger Notification 
+// ----------------------------------------------------------------
+pub trait GetUrgency {
+    fn urgent_level(&self) -> &str;
 
-    pub fn get_unplugged_sound(&self) -> &str {
-        if let Some(unplugged_sound) = &self.unplugged_sound {
-            return unplugged_sound;
-        }
-        ""
-    }
-
-    pub fn get_discharging_icon(&self) -> &str {
-        if let Some(discharging_icon) = &self.discharging_icon {
-            return discharging_icon;
-        }
-        ""
-    }
-
-    pub fn get_urgency(&self) -> Urgency {
-        if let Some(urgent_level) = &self.urgent_level {
-           match urgent_level.as_str().trim().try_into() {
-                Ok(urgent) => return urgent,
-                Err(_) => { 
-                    eprint!("Unsupported Urgency Level.\t Resorting to Normal");
-                    return Urgency::Normal;
-                }
-           }
-        }
+    fn urgency(&self) -> Urgency {
+        match self.urgent_level().try_into(){
+            Ok(urgency) => {return urgency;},
+            Err(_) => {
+                eprintln!("Unsupported urgency level, defaulting to Normal");
+            }
+        };
         Urgency::Normal
     }
+}
 
-    pub fn get_bool_by_state(&self, state: &str) -> bool {
-        if state == "Charging" {
-            return self.get_charging();
-        }
-        self.get_discharging()
+impl GetUrgency for BatteryNotification {
+    fn urgent_level(&self) -> &str {
+        self.urgent_level.as_deref().unwrap_or("Normal").trim()
     }
+}
 
-    pub fn get_icon_by_state(&self, state: &str) -> &str {
-        if state == "Charging" {
-            return self.get_charging_icon();
-        }
-        self.get_discharging_icon()
-    }
-
-    pub fn get_sound_by_state(&self, state: &str) -> &str {
-        if state == "Charging" {
-            return self.get_plugged_sound();
-        }
-        self.get_unplugged_sound()
+impl GetUrgency for ChargerNotification {
+    fn urgent_level(&self) -> &str {
+        self.urgent_level.as_deref().unwrap_or("Normal").trim()
     }
 }
