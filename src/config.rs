@@ -1,8 +1,7 @@
 use std::{collections::BTreeMap, fs};
 use serde_json;
-use serde;
 use serde::Deserialize;
-
+use notify_rust::Urgency;
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
@@ -39,5 +38,38 @@ impl Config {
         let file: String = fs::read_to_string("config.json").expect("Failed to open file");
         let config: Config = serde_json::from_str(&file).unwrap();
         config
+    }
+}
+
+impl BatteryNotification {
+    pub fn get_message(self: &Self) -> &str {
+        self.message.as_str()
+    }
+    
+    pub fn get_icon(self: &Self) -> &str {
+        if let Some(icon) = &self.notification_icon {
+            return icon.as_str();
+        }
+        return "";
+    }
+    
+    pub fn get_sound(self: &Self) -> &str {
+        if let Some(sound) = &self.notification_sound {
+            return sound.as_str();
+        }
+        return "";
+    }
+    
+    pub fn get_urgency(self: &Self) -> Urgency {
+        if let Some(urgent_level) = &self.urgent_level {
+           match urgent_level.as_str().trim().try_into() {
+                Ok(urgent) => return urgent,
+                Err(_) => { 
+                    eprint!("Unsupported Urgency Level.\t Resorting to Normal");
+                    return Urgency::Normal;
+                }
+           }
+        }
+        return Urgency::Normal;
     }
 }

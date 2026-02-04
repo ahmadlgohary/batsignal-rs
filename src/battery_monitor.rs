@@ -1,6 +1,6 @@
 use std::{collections::HashSet, io};
 
-use crate::{config::Config, notifications::{update_notification, testing_notification}};
+use crate::{config::Config, notifications::{send_battery_notification, testing_notification}};
 
 
 pub fn get_battery_manager () -> Option<battery::Manager> {
@@ -78,29 +78,36 @@ impl BatteryStats {
     }
 
     pub fn handle_charger_notifications(self: &mut Self, notification_id: u32) {
+        let inferred_state: &str;
 
-        let inferred_state: &String;
-        if self.current_state == "unknown" { 
-            inferred_state = &self.prev_state; 
-        } else{
-            inferred_state = &self.current_state;
-        };
-        if *inferred_state != self.last_notified_state {
+        if self.current_state == "unknown" {
+            // Transition edge: infer the *new* state
+            inferred_state = if self.prev_state == "discharging" { "charging"} else { "discharging" };
+        } 
+        else {
+            // Normal case: use current state
+            inferred_state = self.current_state.as_str();
+        }
+
+        // Notify only once per inferred state change
+        if inferred_state != self.last_notified_state {
             testing_notification(notification_id, inferred_state);
-
             self.last_notified_state = inferred_state.to_string();
         }
     }
 
-    pub fn handle_battery(self: &mut Self, notification_id: u32, _configuration: &Config, notifications_sent: &mut HashSet<u8>) {
-        
+    pub fn handle_battery_state_change(self: &mut Self, notifications_sent: &mut HashSet<u8>){
         // This means we switched states 
         if self.prev_state != self.current_state {
+            // previous state should never be unknown
             if self.current_state != "unknown" {
                 self.prev_state = self.current_state.clone();
             }
             notifications_sent.clear();
         }
+    }
+
+    pub fn handle_battery(self: &mut Self, notification_id: u32, _configuration: &Config, notifications_sent: &mut HashSet<u8>) {
 
         if self.current_state == "discharging" {
             
@@ -110,7 +117,7 @@ impl BatteryStats {
                     if self.percentage <= *battery_level as i32 {
                         if !(notifications_sent).contains(battery_level) {
                             notifications_sent.insert(*battery_level);
-                            update_notification(notification_id, &self.percentage, &notification_info);
+                            send_battery_notification(notification_id, &self.percentage, &notification_info);
                         }
                     }
                 }
@@ -125,7 +132,7 @@ impl BatteryStats {
                     if self.percentage >= *battery_level as i32 {
                         if !(notifications_sent).contains(battery_level) {
                             notifications_sent.insert(*battery_level);
-                            update_notification(notification_id, &self.percentage, &notification_info);
+                            send_battery_notification(notification_id, &self.percentage, &notification_info);
                         }
                     }
                 }

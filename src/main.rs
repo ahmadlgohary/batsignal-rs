@@ -1,7 +1,6 @@
 use std::collections::HashSet;
 use std::{thread, time::Duration};
 use notifications::create_notification_id;
-use notifications::update_notification;
 
 
 extern crate battery;
@@ -28,12 +27,14 @@ fn main() {
         Some(battery_stats) => battery_stats,
         None => return,
     };
+    play_notification_sound();
 
     loop {
             battery_stats.get_battery_stats(&manager, &mut battery);
             println!("{:?}", battery_stats);
-            battery_stats.handle_battery(_notif_id, &_configuration, &mut sent_levels);
             battery_stats.handle_charger_notifications(_notif_id);
+            battery_stats.handle_battery_state_change(&mut sent_levels);
+            battery_stats.handle_battery(_notif_id, &_configuration, &mut sent_levels);
             thread::sleep(Duration::from_secs(1));
         }
 }
