@@ -1,5 +1,7 @@
-use std::{collections::HashSet, io};
-use crate::{config::Config, notifications::{send_battery_notification, send_charger_notification}};
+use crate::config::{BatteryNotification, ChargerNotification, GetUrgency};
+use std::{collections::{BTreeMap, HashSet}, io};
+
+use crate::notifications::{send_battery_notification, send_charger_notification};
 
 
 //  ----------------------------------------------------
@@ -39,7 +41,11 @@ impl BatteryStats {
         }
     } 
     
-    pub fn handle_charger_notifications(&mut self, config: &Config ) {
+    pub fn handle_charger_notifications(
+        &mut self, 
+        charger_notif: &Option<ChargerNotification>, 
+        notif_time: i32 
+    ) {
         
         let inferred_state: &str = if self.current_state == "Unknown" {
             // Transition edge: infer the *new* state
@@ -53,16 +59,20 @@ impl BatteryStats {
 
         // Notify only once per inferred state change
         if inferred_state != self.last_notified_state {
-            if let Some(charger_notifications) = &config.charger_notifications
+            
+            self.last_notified_state = inferred_state.to_string();
+            
+            if let Some(charger_notifications) = charger_notif
                 && charger_notifications.should_notify_for_state(inferred_state) {
                     send_charger_notification(
                         inferred_state, 
                         &self.percentage,
-                        charger_notifications,
-                        config.time()
-                        );
+                        charger_notifications.icon_for_state(inferred_state),
+                        charger_notifications.urgency(),
+                        charger_notifications.sound_for_state(inferred_state),
+                        notif_time
+                    );
             }
-            self.last_notified_state = inferred_state.to_string();
         }
     }
 
@@ -77,24 +87,49 @@ impl BatteryStats {
         }
     }
 
-    pub fn handle_battery(&mut self, config: &Config, battery_notif_sent: &mut HashSet<u8>) {
-        let notification_time = config.time();
-        if self.current_state == "Discharging" && let Some(low_charges) = &config.low_battery_levels {
+    pub fn handle_battery(
+        &mut self, 
+        low_level_notifs: &Option<BTreeMap<u8, BatteryNotification>>, 
+        high_level_notifs: &Option<BTreeMap<u8, BatteryNotification>>, 
+        notif_time: i32,
+        battery_notif_sent: &mut HashSet<u8>
+    ) {
+            
+
+        if self.current_state == "Discharging" && let Some(low_charges) = low_level_notifs {
                 
             for (battery_level, notification_info)  in low_charges.iter().rev(){
                 if self.percentage <= *battery_level as i32 && !(battery_notif_sent).contains(battery_level) {
+
                     battery_notif_sent.insert(*battery_level);
-                    send_battery_notification(&self.percentage, notification_info, notification_time);
+                    
+                    send_battery_notification(
+                        &self.percentage, 
+                        notification_info.notification_message(), 
+                        notification_info.notification_icon(), 
+                        notification_info.urgency(), 
+                        notification_info.notification_sound(), 
+                        notif_time
+                    );
                 }
             }
             
         }
-        else if self.current_state == "Charging" && let Some(high_charges) = &config.high_battery_levels {
+        else if self.current_state == "Charging" && let Some(high_charges) = high_level_notifs {
 
             for (battery_level, notification_info)  in high_charges.iter(){
                 if self.percentage >= *battery_level as i32 && !(battery_notif_sent).contains(battery_level) {
+                    
                     battery_notif_sent.insert(*battery_level);
-                    send_battery_notification(&self.percentage, notification_info, notification_time);
+                    
+                    send_battery_notification(
+                        &self.percentage, 
+                        notification_info.notification_message(), 
+                        notification_info.notification_icon(), 
+                        notification_info.urgency(), 
+                        notification_info.notification_sound(), 
+                        notif_time
+                    );
                 }
             }
         }

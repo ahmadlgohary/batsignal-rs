@@ -28,12 +28,20 @@ impl Config {
 
     /// This function creates a default config
     fn default() -> Self {
-        let low_battery_map: BTreeMap<u8, BatteryNotification> = BTreeMap::from([
-            (20, BatteryNotification { message: "Battery Low".to_string(), 
-                notification_icon: None, notification_sound: None, urgent_level: None })]);
+        let low_battery_map = Some(BTreeMap::from([(20, 
+            BatteryNotification { 
+                message: "Battery Low".to_string(), 
+                notification_icon: None, 
+                notification_sound: None, 
+                urgent_level: None 
+            })]));
             
-        Self { notification_time: None, high_battery_levels: None, 
-            low_battery_levels: Some(low_battery_map), charger_notifications: None }
+        Self { 
+            notification_time: None, 
+            high_battery_levels: None, 
+            low_battery_levels: low_battery_map, 
+            charger_notifications: None 
+        }
     }
 
     /// Getter function to return the time specified in the configuration file

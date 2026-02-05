@@ -1,16 +1,13 @@
-use notify_rust::{Notification, Hint};
-use crate::{
-    audio::play_notification_sound, 
-    config::{
-        GetUrgency,
-        BatteryNotification, 
-        ChargerNotification
-    }
-};
+use notify_rust::{Hint, Notification, Urgency};
+use crate::audio::play_notification_sound;
+
 
 pub fn send_battery_notification(
         battery_level: &i32, 
-        notif_info: &BatteryNotification, 
+        notif_message: &str,
+        notif_icon: &str,
+        notif_urgency: Urgency,
+        notif_sound: &str,
         time: i32
     ){
 
@@ -18,22 +15,24 @@ pub fn send_battery_notification(
     .hint(Hint::Transient(true))
     .hint(Hint::Custom("synchronous".into(), "battery_notif".into()))  
 
-    .summary(notif_info.notification_message())
+    .summary(notif_message)
     .body(&format!("{battery_level}% of battery remaining"))
-    .icon(notif_info.notification_icon())
-    .urgency(notif_info.urgency())
+    .icon(notif_icon)
+    .urgency(notif_urgency)
     .timeout(time)
 
     .show()
     .unwrap();
     
-    play_notification_sound(notif_info.notification_sound());
+    play_notification_sound(notif_sound);
 }
 
 pub fn send_charger_notification(
         charging_state: &str,
         battery_level: &i32,
-        notif_info: &ChargerNotification, 
+        notif_icon: &str, 
+        notif_urgency: Urgency,
+        notif_sound: &str,
         time: i32
     ) {
     
@@ -47,28 +46,14 @@ pub fn send_charger_notification(
 
     .summary(charging_state)
     .body(&format!("{battery_level}% of battery remaining"))
-    .icon(notif_info.icon_for_state(charging_state))
-    .urgency(notif_info.urgency())
+    .icon(notif_icon)
+    .urgency(notif_urgency)
     .timeout(time) 
 
     .show()
     .unwrap();
     
-    play_notification_sound(notif_info.sound_for_state(charging_state));
+    play_notification_sound(notif_sound);
 } 
 
 
-
-// -------- Obsolete --------
-// /// This function creates a notification Id such that other notifications use the same id and replace each other. 
-// /// The Id is retrieved by sending a notification and closing it. 
-// /// This happens fast enough such that the notification does not appear to the user
-// /// 
-// pub fn create_notification_id() -> u32 {
-//     let handle  = Notification::new()
-//     .show()
-//     .unwrap();
-//     let id = handle.id();   
-//     handle.close();  
-//     id
-// } 
