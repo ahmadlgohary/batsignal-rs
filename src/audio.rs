@@ -1,3 +1,4 @@
+#![cfg(not(test))]
 /// Plays sound along side notification
 pub fn play_notification_sound(sound_path: &str) {
     

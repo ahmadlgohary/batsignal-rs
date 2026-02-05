@@ -6,6 +6,7 @@ mod config;
 mod battery_monitor;
 mod notifications;
 mod audio;
+mod tests;
 
 fn main() {
     let configuration = config::Config::parse_toml();

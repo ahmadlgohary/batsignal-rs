@@ -1,3 +1,4 @@
+#![cfg(not(test))]
 use notify_rust::{Hint, Notification, Urgency};
 use crate::audio::play_notification_sound;
 

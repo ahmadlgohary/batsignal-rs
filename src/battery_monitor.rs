@@ -1,13 +1,18 @@
+use serde::Deserialize;
+
 use crate::config::{BatteryNotification, ChargerNotification, GetUrgency};
 use std::{collections::{BTreeMap, HashSet}, io};
 
+#[cfg(not(test))]
 use crate::notifications::{send_battery_notification, send_charger_notification};
 
+#[cfg(test)]
+use crate::tests::{send_battery_notification, send_charger_notification};
 
 //  ----------------------------------------------------
 //  BatteryStats Struct and Implementation
 //  ----------------------------------------------------
-#[derive(Debug)]
+#[derive(Debug, Deserialize)]
 pub struct BatteryStats {
     prev_state: String,
     last_notified_state: String,
