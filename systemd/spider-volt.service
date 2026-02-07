@@ -1,0 +1,13 @@
+[Unit]
+Description=A lightweight battery notification daemon written in Rust
+Documentation=https://github.com/ahmadlgohary/spider-volt
+Requires=dbus.service pipewire.service                                                                                                                  
+After=dbus.service pipewire.service
+
+[Service]
+Type=simple
+ExecStart = /usr/bin/spider-volt
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
