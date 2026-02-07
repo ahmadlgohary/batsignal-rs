@@ -1,47 +1,52 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use notify_rust::Urgency;
-use std::{collections::BTreeMap, fs};
+use std::{collections::BTreeMap};
 
 // ----------------------------------------------------------------
 // Configuration Struct and Implementation
 // ----------------------------------------------------------------
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Config {
     notification_time: Option<i32>,
-    pub(crate) high_battery_levels: Option<BTreeMap<u8, BatteryNotification>>,
-    pub(crate) low_battery_levels: Option<BTreeMap<u8, BatteryNotification>>,
-    pub(crate) charger_notifications: Option<ChargerNotification>
+    pub high_battery_levels: Option<BTreeMap<u8, BatteryNotification>>,
+    pub low_battery_levels: Option<BTreeMap<u8, BatteryNotification>>,
+    pub charger_notifications: Option<ChargerNotification>
 }
 
 /// This function reads a json config file and parses it into the Config Struct
 impl Config {
-    pub fn parse_toml() -> Self {
-        // TODO: 
-        //  - make it take command line arguments for the path 
-        fs::read_to_string("config.toml")
-            .ok()
-            .and_then(|file| { toml::from_str(&file).ok()})
-            .unwrap_or_else(|| { 
-                eprintln!("Failed to load config.toml, using defaults");
-                Self::default()})
-    }
 
     /// This function creates a default config
-    fn default() -> Self {
-        let low_battery_map = Some(BTreeMap::from([(20, 
+    pub fn default() -> Self {
+        // The default config, sends a notification only at 20% battery
+        let notification_time = Some(5000);
+        let low_battery_levels = Some(BTreeMap::from([(20, 
             BatteryNotification { 
                 message: "Battery Low".to_string(), 
-                notification_icon: None, 
-                notification_sound: None, 
-                urgent_level: None 
+                notification_icon: Some("".to_string()), 
+                notification_sound: Some("".to_string()), 
+                urgent_level: Some("".to_string()) 
             })]));
-            
-        Self { 
-            notification_time: None, 
-            high_battery_levels: None, 
-            low_battery_levels: low_battery_map, 
-            charger_notifications: None 
-        }
+
+        let high_battery_levels = Some(BTreeMap::from([(100, 
+            BatteryNotification { 
+                message: "".to_string(), 
+                notification_icon: Some("".to_string()), 
+                notification_sound: Some("".to_string()), 
+                urgent_level: Some("".to_string()) 
+            })]));
+        
+        let charger_notifications = Some (ChargerNotification {
+            charging: Some(false),
+            plugged_sound: Some("".to_string()),
+            charging_icon: Some("".to_string()),
+            discharging: Some(false),
+            unplugged_sound: Some("".to_string()),
+            discharging_icon: Some("".to_string()),
+            urgent_level: Some("".to_string())
+            });
+
+        Self { notification_time,high_battery_levels, low_battery_levels, charger_notifications }
     }
 
     /// Getter function to return the time specified in the configuration file
@@ -55,7 +60,7 @@ impl Config {
 // ----------------------------------------------------------------
 // Battery Notification Struct and Implementation
 // ----------------------------------------------------------------
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct BatteryNotification{
     message: String,
     notification_icon: Option<String>,
@@ -84,7 +89,7 @@ impl BatteryNotification {
 // ----------------------------------------------------------------
 // Charger Notification Struct and Implementation
 // ----------------------------------------------------------------
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct ChargerNotification {
     charging: Option<bool>,
     plugged_sound: Option<String>,
